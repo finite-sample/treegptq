@@ -1,4 +1,4 @@
-# treegptq
+# treegptq: fewer bits for your fitted trees
 
 Post-training quantization for fitted tree ensembles. Bring your trained
 XGBoost or scikit-learn model, get back the same model with 2-4 bit leaf
