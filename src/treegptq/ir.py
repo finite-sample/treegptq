@@ -93,9 +93,12 @@ class EnsembleIR:
             out += self.tree_weights[t] * tree.value[assign[:, t]]
         return out[:, 0] if self.n_out == 1 else out
 
-    def predict(self, X: np.ndarray) -> np.ndarray:
-        """Output-space prediction (probability for binary_logistic)."""
-        m = self.margin(X)
+    def predict(self, X: np.ndarray, assign: np.ndarray | None = None) -> np.ndarray:
+        """Output-space prediction (probability for binary_logistic).
+
+        Optional leaf assignments must use the same X rows, order and tree topology.
+        """
+        m = self.margin(X, assign)
         if self.objective == "binary_logistic":
             return 1.0 / (1.0 + np.exp(-m))
         return m
