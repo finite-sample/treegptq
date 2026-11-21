@@ -89,8 +89,11 @@ def _leaf_traffic_hessian_weights(ir: EnsembleIR, assign: np.ndarray) -> list[np
 # ---------------------------------------------------------------- main pass
 
 def quantize_leaves(ir: EnsembleIR, X_cal: np.ndarray, bits: int = 3,
-                    method: str = "gptq", seed: int = 0) -> tuple[EnsembleIR, dict]:
+                    method: str = "gptq", seed: int = 0, *,
+                    assign: np.ndarray | None = None) -> tuple[EnsembleIR, dict]:
     """Quantize leaf values of `ir` (n_out == 1). Returns (new_ir, info).
+
+    Optional leaf assignments must use the same X_cal rows, order and tree topology.
 
     info: {"bits_per_tree": array, "avg_bits": float, "codebook": array | None,
            "codes": list of per-tree integer code arrays or None}
@@ -102,7 +105,8 @@ def quantize_leaves(ir: EnsembleIR, X_cal: np.ndarray, bits: int = 3,
 
     out = ir.copy()
     T = len(out.trees)
-    assign = out.leaf_assignment(np.asarray(X_cal, dtype=np.float64))
+    if assign is None:
+        assign = out.leaf_assignment(np.asarray(X_cal, dtype=np.float64))
     vals = [v[:, 0] for v in out.get_leaf_values()]
     allv = np.concatenate(vals)
     info: dict = {"codebook": None, "codes": None}

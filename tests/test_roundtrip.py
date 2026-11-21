@@ -81,3 +81,22 @@ def test_save_load_roundtrip(tmp_path):
     tq.save(qir, p, info=info)
     loaded = tq.load(p)
     np.testing.assert_allclose(loaded.predict(Xt), qir.predict(Xt), atol=1e-5)
+
+
+def test_sweep_matches_individual_reports_and_routes_inputs_once(monkeypatch):
+    from treegptq.ir import EnsembleIR
+
+    model = RandomForestRegressor(n_estimators=3, max_depth=3, random_state=7).fit(Xc, yc)
+    methods = ["rtn", "gptq"]
+    single = [tq.quantize(model, Xc, yc, bits=b, method=m, X_eval=Xt, y_eval=yt)[1]
+              for b in [2, 3] for m in methods]
+    routed = []
+    original = EnsembleIR.leaf_assignment
+
+    def record(self, x):
+        routed.append(len(x))
+        return original(self, x)
+
+    monkeypatch.setattr(EnsembleIR, "leaf_assignment", record)
+    assert tq.sweep(model, Xc, yc, Xt, yt, bits=[2, 3], methods=methods) == single
+    assert routed.count(len(Xc)) == routed.count(len(Xt)) == 1

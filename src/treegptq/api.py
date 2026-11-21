@@ -36,8 +36,9 @@ def _auc(y: np.ndarray, p: np.ndarray) -> float:
     return float((ranks[y == 1].sum() - n1 * (n1 + 1) / 2) / (n0 * n1))
 
 
-def _metrics(ir: EnsembleIR, X: np.ndarray, y: np.ndarray) -> dict[str, float]:
-    p = ir.predict(X)
+def _metrics(ir: EnsembleIR, X: np.ndarray, y: np.ndarray,
+             assign: np.ndarray | None = None) -> dict[str, float]:
+    p = ir.predict(X, assign)
     if ir.objective == "binary_logistic":
         return {"logloss": _logloss(y, p), "auc": _auc(y, p)}
     return {"rmse": _rmse(y, p)}
@@ -118,17 +119,24 @@ def sweep(model: Any, X_cal: np.ndarray, y_cal: np.ndarray | None,
     """Frontier: every (method, bits) cell evaluated on held-out data."""
     ir = adapters.to_ir(model, np.asarray(X_cal)[:256])
     before_bytes = _native_bytes(model)
-    before_metrics = _metrics(ir, np.asarray(X_eval), np.asarray(y_eval))
+    # Quantization changes leaf values; the tree topology and routing stay fixed.
+    X_eval = np.asarray(X_eval)
+    y_eval = np.asarray(y_eval)
+    eval_leaves = ir.leaf_assignment(X_eval)
+    before_metrics = _metrics(ir, X_eval, y_eval, eval_leaves)
+    cal_leaves = None
     out = []
     for b in bits:
         for m in methods:
-            qir, info = quantize_leaves(ir, X_cal, bits=b, method=m, seed=seed)
+            if cal_leaves is None:
+                cal_leaves = ir.leaf_assignment(X_cal)
+            qir, info = quantize_leaves(ir, X_cal, bits=b, method=m, seed=seed,
+                                        assign=cal_leaves)
             out.append(Report(method=m, bits=info["avg_bits"],
                               bytes_before=before_bytes,
                               bytes_after=_tgq_bytes(qir, info),
                               metrics_before=before_metrics,
-                              metrics_after=_metrics(qir, np.asarray(X_eval),
-                                                     np.asarray(y_eval))))
+                              metrics_after=_metrics(qir, X_eval, y_eval, eval_leaves)))
     return out
 
 
